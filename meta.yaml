@@ -5,8 +5,6 @@ tracks:
       datasource: github-releases
       depName: Radarr/Radarr
       version: "6.4.4.10685"
-    buildArgs:
-      RADARR_BRANCH: master
     aliases:
       - "{major}"
       - "{major}.{minor}"
@@ -19,8 +17,6 @@ tracks:
       depName: Radarr/Radarr
       version: "6.4.4.10684"
     prerelease: true
-    buildArgs:
-      RADARR_BRANCH: develop
     aliases:
       - "{major}-prerelease"
       - "{major}.{minor}-prerelease"
