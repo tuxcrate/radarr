@@ -1,23 +1,32 @@
 ARG BASE_IMAGE
-FROM ${BASE_IMAGE} AS download
+FROM --platform=$BUILDPLATFORM ${BASE_IMAGE} AS release
+
+ARG APP_VERSION
+
+RUN set -eux; \
+    : "${APP_VERSION:?APP_VERSION must be set}"; \
+    apk add --no-cache ca-certificates curl jq; \
+    curl --fail-with-body --location --retry 3 --retry-all-errors --retry-max-time 180 \
+        --connect-timeout 15 --max-time 60 \
+        "https://api.github.com/repos/Radarr/Radarr/releases/tags/v${APP_VERSION}" \
+        --output /tmp/release.json \
+        || { cat /tmp/release.json >&2; exit 1; }; \
+    jq -e --arg tag "v${APP_VERSION}" \
+        '.tag_name == $tag and .draft == false and (.prerelease | type == "boolean")' /tmp/release.json; \
+    jq -r 'if .prerelease then "develop" else "master" end' /tmp/release.json > /tmp/branch
+
+FROM release AS download
 
 ARG APP_VERSION
 ARG TARGETARCH
 
 RUN set -eux; \
-    : "${APP_VERSION:?APP_VERSION must be set}"; \
-    apk add --no-cache ca-certificates curl jq; \
     case "$TARGETARCH" in \
         amd64) asset_arch=x64 ;; \
         arm64) asset_arch=arm64 ;; \
         *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
-    curl --fail --location --retry 3 \
-        "https://api.github.com/repos/Radarr/Radarr/releases/tags/v${APP_VERSION}" \
-        --output /tmp/release.json; \
-    jq -e --arg tag "v${APP_VERSION}" \
-        '.tag_name == $tag and .draft == false and (.prerelease | type == "boolean")' /tmp/release.json; \
-    branch="$(jq -r 'if .prerelease then "develop" else "master" end' /tmp/release.json)"; \
+    branch="$(cat /tmp/branch)"; \
     jq -ce --arg name "Radarr.${branch}.${APP_VERSION}.linux-musl-core-${asset_arch}.tar.gz" \
         '[.assets[] | select(.name == $name)] \
         | if length == 1 then .[0] else error("expected one matching Radarr channel asset") end' \
