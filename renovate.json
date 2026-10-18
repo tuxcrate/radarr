@@ -1,0 +1,26 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>tuxcrate/renovate-config:images"],
+  "packageRules": [
+    {
+      "matchDatasources": ["github-releases"],
+      "matchPackageNames": ["Radarr/Radarr"],
+      "extractVersion": "^v(?<version>[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)$",
+      "versioning": "loose"
+    },
+    {
+      "matchDatasources": ["github-releases"],
+      "matchPackageNames": ["Radarr/Radarr"],
+      "matchDepTypes": ["stable"],
+      "ignoreUnstable": true
+    },
+    {
+      "matchDatasources": ["github-releases"],
+      "matchPackageNames": ["Radarr/Radarr"],
+      "matchDepTypes": ["prerelease"],
+      "ignoreUnstable": false,
+      "respectLatest": false,
+      "prBodyNotes": ["The prerelease track follows upstream GitHub prereleases. Builds select Radarr.develop assets for prereleases and Radarr.master assets for stable releases, verify upstream checksums, and smoke-test both architectures before publication."]
+    }
+  ]
+}
