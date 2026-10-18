@@ -3,9 +3,15 @@ FROM ${BASE_IMAGE} AS download
 
 ARG APP_VERSION
 ARG TARGETARCH
+ARG RADARR_BRANCH
 
 RUN set -eux; \
     : "${APP_VERSION:?APP_VERSION must be set}"; \
+    case "${RADARR_BRANCH:?RADARR_BRANCH must be set}" in \
+        master) prerelease=false ;; \
+        develop) prerelease=true ;; \
+        *) echo "Unsupported Radarr branch: $RADARR_BRANCH" >&2; exit 1 ;; \
+    esac; \
     apk add --no-cache ca-certificates curl jq; \
     case "$TARGETARCH" in \
         amd64) asset_arch=x64 ;; \
@@ -15,11 +21,11 @@ RUN set -eux; \
     curl --fail --location --retry 3 \
         "https://api.github.com/repos/Radarr/Radarr/releases/tags/v${APP_VERSION}" \
         --output /tmp/release.json; \
-    jq -e --arg tag "v${APP_VERSION}" \
-        '.tag_name == $tag and .draft == false and .prerelease == false' /tmp/release.json; \
-    jq -ce --arg name "Radarr.master.${APP_VERSION}.linux-musl-core-${asset_arch}.tar.gz" \
+    jq -e --arg tag "v${APP_VERSION}" --argjson prerelease "$prerelease" \
+        '.tag_name == $tag and .draft == false and .prerelease == $prerelease' /tmp/release.json; \
+    jq -ce --arg name "Radarr.${RADARR_BRANCH}.${APP_VERSION}.linux-musl-core-${asset_arch}.tar.gz" \
         '[.assets[] | select(.name == $name)] \
-        | if length == 1 then .[0] else error("expected one stable Radarr asset") end' \
+        | if length == 1 then .[0] else error("expected one matching Radarr channel asset") end' \
         /tmp/release.json > /tmp/asset.json; \
     checksum="$(jq -er '.digest | select(test("^sha256:[0-9a-f]{64}$"))' /tmp/asset.json)"; \
     download_url="$(jq -er '.browser_download_url' /tmp/asset.json)"; \
@@ -32,11 +38,12 @@ RUN set -eux; \
     printf 'Radarr is distributed under GPL-3.0. See /opt/radarr/LICENSE.\nUpstream release: https://github.com/Radarr/Radarr/releases/tag/v%s\nCorresponding source: https://github.com/Radarr/Radarr/tree/v%s\nSource archive: https://github.com/Radarr/Radarr/archive/refs/tags/v%s.tar.gz\n' \
         "$APP_VERSION" "$APP_VERSION" "$APP_VERSION" > /notices/SOURCE; \
     rm -rf /radarr/Radarr.Update; \
-    printf 'UpdateMethod=docker\nBranch=master\nPackageAuthor=[Tuxcrate](https://tuxcrate.com)\n' > /package_info
+    printf 'UpdateMethod=docker\nBranch=%s\nPackageAuthor=[Tuxcrate](https://tuxcrate.com)\n' "$RADARR_BRANCH" > /package_info
 
 FROM ${BASE_IMAGE}
 
 ARG APP_VERSION
+ARG RADARR_BRANCH
 
 ENV HOME=/config \
     XDG_CONFIG_HOME=/config/xdg \
@@ -58,7 +65,7 @@ COPY tests/smoke.sh /usr/local/bin/radarr-smoke-test
 USER 1000:1000
 WORKDIR /config
 
-RUN sh /usr/local/bin/radarr-smoke-test "${APP_VERSION}"
+RUN sh /usr/local/bin/radarr-smoke-test "${APP_VERSION}" "${RADARR_BRANCH}"
 
 EXPOSE 7878
 ENTRYPOINT ["/opt/radarr/Radarr", "-nobrowser", "-data=/config"]

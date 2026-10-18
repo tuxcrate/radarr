@@ -2,6 +2,8 @@
 set -eu
 
 : "${1:?Expected application version is required}"
+: "${2:?Expected Radarr branch is required}"
+grep -Fx "Branch=$2" /opt/package_info
 test "$(id -u)" -ne 0
 test ! -w /opt/radarr
 test -s /opt/radarr/LICENSE
