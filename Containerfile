@@ -1,30 +1,46 @@
 ARG BASE_IMAGE
-FROM --platform=$BUILDPLATFORM ${BASE_IMAGE} AS download
+FROM --platform=$BUILDPLATFORM ${BASE_IMAGE} AS release
+
+ARG APP_VERSION
+
+RUN --mount=type=secret,id=github_token \
+    set -eu; \
+    : "${APP_VERSION:?APP_VERSION must be set}"; \
+    set --; \
+    if [ -s /run/secrets/github_token ]; then \
+        set -- --header "Authorization: Bearer $(cat /run/secrets/github_token)"; \
+    fi; \
+    apk add --no-cache ca-certificates curl jq; \
+    curl "$@" --fail-with-body --location --retry 3 --retry-all-errors --retry-max-time 180 \
+        --connect-timeout 15 --max-time 60 \
+        "https://api.github.com/repos/Radarr/Radarr/releases/tags/v${APP_VERSION}" \
+        --output /tmp/release.json \
+        || { cat /tmp/release.json >&2; exit 1; }; \
+    jq -e --arg tag "v${APP_VERSION}" \
+        '.tag_name == $tag and .draft == false and (.prerelease | type == "boolean")' /tmp/release.json; \
+    jq -r 'if .prerelease then "develop" else "master" end' /tmp/release.json > /tmp/branch
+
+FROM release AS download
 
 ARG APP_VERSION
 ARG TARGETARCH
-ARG UPSTREAM_PRERELEASE
-ARG UPSTREAM_URL_AMD64
-ARG UPSTREAM_SHA256_AMD64
-ARG UPSTREAM_URL_ARM64
-ARG UPSTREAM_SHA256_ARM64
 
 RUN set -eux; \
-    : "${APP_VERSION:?APP_VERSION must be set}"; \
-    apk add --no-cache ca-certificates curl; \
-    case "$UPSTREAM_PRERELEASE" in \
-        true) branch=develop ;; false) branch=master ;; \
-        *) echo "UPSTREAM_PRERELEASE must be true or false" >&2; exit 1 ;; \
-    esac; \
     case "$TARGETARCH" in \
-        amd64) download_url="$UPSTREAM_URL_AMD64"; checksum="$UPSTREAM_SHA256_AMD64" ;; \
-        arm64) download_url="$UPSTREAM_URL_ARM64"; checksum="$UPSTREAM_SHA256_ARM64" ;; \
+        amd64) asset_arch=x64 ;; \
+        arm64) asset_arch=arm64 ;; \
         *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
-    : "${download_url:?upstream asset URL must be set}" "${checksum:?upstream SHA-256 must be set}"; \
+    branch="$(cat /tmp/branch)"; \
+    jq -ce --arg name "Radarr.${branch}.${APP_VERSION}.linux-musl-core-${asset_arch}.tar.gz" \
+        '[.assets[] | select(.name == $name)] \
+        | if length == 1 then .[0] else error("expected one matching Radarr channel asset") end' \
+        /tmp/release.json > /tmp/asset.json; \
+    checksum="$(jq -er '.digest | select(test("^sha256:[0-9a-f]{64}$"))' /tmp/asset.json)"; \
+    download_url="$(jq -er '.browser_download_url' /tmp/asset.json)"; \
     curl --fail --location --retry 3 --proto '=https' --proto-redir '=https' \
         "$download_url" --output /tmp/radarr.tar.gz; \
-    printf '%s  /tmp/radarr.tar.gz\n' "$checksum" | sha256sum -c -; \
+    printf '%s  /tmp/radarr.tar.gz\n' "${checksum#sha256:}" | sha256sum -c -; \
     mkdir /radarr /notices; \
     tar -xzf /tmp/radarr.tar.gz --directory /radarr --strip-components=1; \
     test -s /radarr/LICENSE; \

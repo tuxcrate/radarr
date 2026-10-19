@@ -5,11 +5,6 @@ tracks:
       datasource: github-releases
       depName: Radarr/Radarr
       version: "6.4.4.10685"
-    githubRelease:
-      tag: "v${version}"
-      assets:
-        amd64: "Radarr.master.${version}.linux-musl-core-x64.tar.gz"
-        arm64: "Radarr.master.${version}.linux-musl-core-arm64.tar.gz"
     tags:
       - "${version}"
       - "${major}"
@@ -23,11 +18,6 @@ tracks:
       depName: Radarr/Radarr
       version: "6.4.4.10684"
     prerelease: true
-    githubRelease:
-      tag: "v${version}"
-      assets:
-        amd64: "Radarr.develop.${version}.linux-musl-core-x64.tar.gz"
-        arm64: "Radarr.develop.${version}.linux-musl-core-arm64.tar.gz"
     tags:
       - "${version}-prerelease"
       - "${major}-prerelease"
