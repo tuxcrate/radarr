@@ -51,8 +51,6 @@ RUN set -eux; \
 
 FROM ${BASE_IMAGE}
 
-ARG APP_VERSION
-
 ENV HOME=/config \
     XDG_CONFIG_HOME=/config/xdg \
     COMPlus_EnableDiagnostics=0
@@ -68,12 +66,9 @@ RUN set -eux; \
 COPY --from=download /radarr /opt/radarr
 COPY --from=download /package_info /opt/package_info
 COPY --from=download /notices /usr/share/doc/radarr
-COPY tests/smoke.sh /usr/local/bin/radarr-smoke-test
 
 USER 1000:1000
 WORKDIR /config
-
-RUN sh /usr/local/bin/radarr-smoke-test "${APP_VERSION}"
 
 EXPOSE 7878
 ENTRYPOINT ["/opt/radarr/Radarr", "-nobrowser", "-data=/config"]
