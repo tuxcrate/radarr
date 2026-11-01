@@ -23,6 +23,7 @@ RUN --mount=type=secret,id=github_token \
 FROM release AS download
 
 ARG APP_VERSION
+ARG PACKAGE_VERSION
 ARG TARGETARCH
 
 RUN set -eux; \
@@ -44,10 +45,10 @@ RUN set -eux; \
     mkdir /radarr /notices; \
     tar -xzf /tmp/radarr.tar.gz --directory /radarr --strip-components=1; \
     test -s /radarr/LICENSE; \
-    printf 'Radarr is distributed under GPL-3.0. See /opt/radarr/LICENSE.\nUpstream release: https://github.com/Radarr/Radarr/releases/tag/v%s\nCorresponding source: https://github.com/Radarr/Radarr/tree/v%s\nSource archive: https://github.com/Radarr/Radarr/archive/refs/tags/v%s.tar.gz\n' \
+    printf 'Radarr is distributed under GPL-3.0. See /opt/radarr/bin/LICENSE.\nUpstream release: https://github.com/Radarr/Radarr/releases/tag/v%s\nCorresponding source: https://github.com/Radarr/Radarr/tree/v%s\nSource archive: https://github.com/Radarr/Radarr/archive/refs/tags/v%s.tar.gz\n' \
         "$APP_VERSION" "$APP_VERSION" "$APP_VERSION" > /notices/SOURCE; \
     rm -rf /radarr/Radarr.Update; \
-    printf 'UpdateMethod=docker\nBranch=%s\nPackageAuthor=[Tuxcrate](https://tuxcrate.com)\n' "$branch" > /package_info
+    printf 'UpdateMethod=docker\nBranch=%s\nPackageVersion=%s\nPackageAuthor=[Tuxcrate](https://tuxcrate.com)\n' "$branch" "${PACKAGE_VERSION:-${APP_VERSION}-local}" > /package_info
 
 FROM ${BASE_IMAGE}
 
@@ -63,12 +64,13 @@ RUN set -eux; \
     mkdir -p /config /data; \
     chown 1000:1000 /config /data
 
-COPY --from=download /radarr /opt/radarr
-COPY --from=download /package_info /opt/package_info
+# Radarr only reads ../package_info when its application directory is named bin.
+COPY --from=download /radarr /opt/radarr/bin
+COPY --from=download /package_info /opt/radarr/package_info
 COPY --from=download /notices /usr/share/doc/radarr
 
 USER 1000:1000
 WORKDIR /config
 
 EXPOSE 7878
-ENTRYPOINT ["/opt/radarr/Radarr", "-nobrowser", "-data=/config"]
+ENTRYPOINT ["/opt/radarr/bin/Radarr", "-nobrowser", "-data=/config"]
