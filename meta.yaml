@@ -16,7 +16,7 @@ tracks:
     upstream:
       datasource: github-releases
       depName: Radarr/Radarr
-      version: "7.0.1.10859"
+      version: "7.0.2.10888"
     prerelease: true
     tags:
       - "${version}-prerelease"
